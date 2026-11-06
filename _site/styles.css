@@ -1,1 +1,47 @@
-/* css styles */
+/* Page background and typography */
+body {
+  background-color: #f4f7fa;
+  color: #1e293b;
+}
+
+/* Styled navigation bar with bottom accent border */
+.navbar {
+  background: linear-gradient(90deg, #1b4965, #2c7da0) !important;
+  border-bottom: 4px solid #e07a5f;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+/* Title banner styling */
+h1.title {
+  color: #1b4965;
+  border-bottom: 3px solid #2c7da0;
+  padding-bottom: 0.4rem;
+  margin-bottom: 1.2rem;
+}
+
+/* Section headers with left color bar */
+h2 {
+  color: #1b4965;
+  background-color: #e8f1f5;
+  border-left: 5px solid #e07a5f;
+  border-radius: 6px;
+  padding: 0.5rem 0.9rem;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+}
+
+/* Bordered card frames around plots and interactive maps */
+.cell-output-display {
+  background-color: #ffffff;
+  border: 2px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 1rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 4px 12px rgba(27, 73, 101, 0.08);
+}
+
+/* Crisp inner border for Leaflet maps */
+.leaflet-container {
+  border: 2px solid #94a3b8;
+  border-radius: 8px;
+}

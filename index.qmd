@@ -1,14 +1,21 @@
 ---
-title: "Sarasota County Age Distribution"
+title: "Sarasota County & Florida Age Distribution"
 execute:
   echo: false
   message: false
   warning: false
 ---
 
+## Sarasota County Age Distribution
+
 ```{r}
 library(tidyverse)
 library(tidycensus)
+library(leaflet)
+library(sf)
+
+# Cache downloaded Census map boundaries so future renders are fast
+options(tigris_use_cache = TRUE)
 
 # Define the 5-year age group percentage variables from ACS Table S0101
 age_vars <- c(
@@ -45,7 +52,7 @@ sarasota_ages <- get_acs(
 
 # Create a bar chart of age group percentages
 ggplot(sarasota_ages, aes(x = variable, y = estimate)) +
-  geom_col(fill = "steelblue") +
+  geom_col(fill = "#2c7da0", color = "#1b4965", linewidth = 0.3) +
   coord_flip() +
   labs(
     title = "Age Distribution in Sarasota County, FL",
@@ -55,4 +62,155 @@ ggplot(sarasota_ages, aes(x = variable, y = estimate)) +
     caption = "Source: U.S. Census Bureau, 2018-2022 American Community Survey (Table S0101)"
   ) +
   theme_minimal()
+```
+
+## Sarasota County Interactive Age Map
+
+```{r}
+# Find the top 2 largest age groups for each census tract in Sarasota County
+top_two_ages <- get_acs(
+  geography = "tract",
+  state = "FL",
+  county = "Sarasota",
+  variables = age_vars,
+  year = 2022
+) |>
+  filter(!is.na(estimate)) |>
+  # Keep the 2 age groups with the highest percentage in each tract
+  slice_max(estimate, n = 2, with_ties = FALSE, by = GEOID) |>
+  summarize(
+    top_groups = paste0(variable, " (", estimate, "%)", collapse = "<br>"),
+    .by = GEOID
+  )
+
+# Download median age (B01002_001) and map boundaries for each census tract
+sarasota_map <- get_acs(
+  geography = "tract",
+  state = "FL",
+  county = "Sarasota",
+  variables = "B01002_001",
+  year = 2022,
+  geometry = TRUE,
+  progress_bar = FALSE
+) |>
+  # Remove empty water tracts and convert to standard latitude/longitude (WGS84) for Leaflet
+  filter(!st_is_empty(geometry)) |>
+  st_transform(4326) |>
+  left_join(top_two_ages, by = "GEOID") |>
+  # Build the HTML hover tooltip showing tract name, median age, and top 2 age groups
+  mutate(
+    hover_label = paste0(
+      "<strong>", str_remove(NAME, "; Sarasota County; Florida"), "</strong><br>",
+      "Median Age: ", estimate, "<br>",
+      "<strong>Top 2 Age Groups:</strong><br>", top_groups
+    )
+  )
+
+# Create a color palette for median age
+age_pal <- colorNumeric(palette = "plasma", domain = sarasota_map$estimate)
+
+# Build the interactive map with hover tooltips
+leaflet(sarasota_map) |>
+  addProviderTiles(providers$CartoDB.Positron) |>
+  addPolygons(
+    fillColor = ~age_pal(estimate),
+    fillOpacity = 0.7,
+    color = "white",
+    weight = 1,
+    label = ~map(hover_label, \(x) htmltools::HTML(x))
+  ) |>
+  addLegend(
+    pal = age_pal,
+    values = ~estimate,
+    title = "Median Age",
+    position = "bottomright"
+  )
+```
+
+## Statewide Florida Age Distribution
+
+```{r}
+# Download 5-year ACS age distribution data for the entire state of Florida
+florida_ages <- get_acs(
+  geography = "state",
+  state = "FL",
+  variables = age_vars,
+  year = 2022
+) |>
+  # Keep the age groups in age order instead of alphabetical order
+  mutate(variable = fct_inorder(variable))
+
+# Create a bar chart of age group percentages for all of Florida
+ggplot(florida_ages, aes(x = variable, y = estimate)) +
+  geom_col(fill = "#e07a5f", color = "#9e4731", linewidth = 0.3) +
+  coord_flip() +
+  labs(
+    title = "Age Distribution in Florida",
+    subtitle = "Statewide age distribution across 5-year age groups",
+    x = "Age Group (Years)",
+    y = "Percentage of Population (%)",
+    caption = "Source: U.S. Census Bureau, 2018-2022 American Community Survey (Table S0101)"
+  ) +
+  theme_minimal()
+```
+
+## Statewide Florida Interactive Age Map
+
+```{r}
+# Find the top 2 largest age groups for each county in Florida
+fl_top_two_ages <- get_acs(
+  geography = "county",
+  state = "FL",
+  variables = age_vars,
+  year = 2022
+) |>
+  filter(!is.na(estimate)) |>
+  # Keep the 2 age groups with the highest percentage in each county
+  slice_max(estimate, n = 2, with_ties = FALSE, by = GEOID) |>
+  summarize(
+    top_groups = paste0(variable, " (", estimate, "%)", collapse = "<br>"),
+    .by = GEOID
+  )
+
+# Download median age (B01002_001) and map boundaries for each Florida county
+florida_map <- get_acs(
+  geography = "county",
+  state = "FL",
+  variables = "B01002_001",
+  year = 2022,
+  geometry = TRUE,
+  progress_bar = FALSE
+) |>
+  # Remove empty geometries and convert to standard latitude/longitude (WGS84) for Leaflet
+  filter(!st_is_empty(geometry)) |>
+  st_transform(4326) |>
+  left_join(fl_top_two_ages, by = "GEOID") |>
+  # Build the HTML hover tooltip showing county name, median age, and top 2 age groups
+  mutate(
+    hover_label = paste0(
+      "<strong>", str_remove(NAME, ", Florida"), "</strong><br>",
+      "Median Age: ", estimate, "<br>",
+      "<strong>Top 2 Age Groups:</strong><br>", top_groups
+    )
+  )
+
+# Create a color palette for Florida county median age
+fl_age_pal <- colorNumeric(palette = "plasma", domain = florida_map$estimate)
+
+# Build the interactive Florida map with hover tooltips
+leaflet(florida_map) |>
+  addProviderTiles(providers$CartoDB.Positron) |>
+  addPolygons(
+    fillColor = ~fl_age_pal(estimate),
+    fillOpacity = 0.7,
+    color = "white",
+    weight = 1,
+    label = ~map(hover_label, \(x) htmltools::HTML(x))
+  ) |>
+  addLegend(
+    pal = fl_age_pal,
+    values = ~estimate,
+    title = "Median Age",
+    position = "bottomright"
+  )
 ```
